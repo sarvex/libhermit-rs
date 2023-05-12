@@ -25,8 +25,10 @@ class TestRunner:
                  verbose=False):
         online_cpus = multiprocessing.cpu_count()
         if num_cores > online_cpus:
-            print("WARNING: You specified num_cores={}, however only {} cpu cores are available."
-                  " Setting num_cores to {}".format(num_cores, online_cpus, online_cpus), file=sys.stderr)
+            print(
+                f"WARNING: You specified num_cores={num_cores}, however only {online_cpus} cpu cores are available. Setting num_cores to {online_cpus}",
+                file=sys.stderr,
+            )
             num_cores = online_cpus
         self.num_cores: int = num_cores
         self.memory_MB: int = memory_in_megabyte
@@ -50,8 +52,10 @@ class TestRunner:
         #       This could be done if a test suddenly regresses compared to usual execution time
         #       Probably need criterion + stable execution environment for this
         if not validate_stdout(stdout):
-            print("Test failed due to Panic. Dumping output (stderr):\n{}\n\n"
-                  "Dumping stdout:\n{}\nFinished Dump".format(stderr, stdout), file=sys.stderr)
+            print(
+                f"Test failed due to Panic. Dumping output (stderr):\n{stderr}\n\nDumping stdout:\n{stdout}\nFinished Dump",
+                file=sys.stderr,
+            )
             return False
         else:
             return True
@@ -60,7 +64,7 @@ class TestRunner:
         """
         :return: returncode, stdout, stderr, elapsed_time, timed_out: bool
         """
-        print("Calling {}".format(type(self).__name__))
+        print(f"Calling {type(self).__name__}")
         try:
             start_time = time.perf_counter()  # https://docs.python.org/3/library/time.html#time.perf_counter
             if self.custom_env is None:
@@ -92,19 +96,32 @@ class QemuTestRunner(TestRunner):
                  num_cores=1,
                  memory_in_megabyte=512,
                  gdb_enabled=False):
-        assert os.path.isfile(test_exe_path), "Invalid path to test executable: {}".format(test_exe_path)
-        assert os.path.isfile(bootloader_path), "Invalid bootloader path: {}".format(bootloader_path)
+        assert os.path.isfile(
+            test_exe_path
+        ), f"Invalid path to test executable: {test_exe_path}"
+        assert os.path.isfile(
+            bootloader_path
+        ), f"Invalid bootloader path: {bootloader_path}"
         self.bootloader_path = os.path.abspath(bootloader_path)
-        test_command = ['qemu-system-x86_64',
-                        '-display', 'none',
-                        '-smp', str(num_cores),
-                        '-m', str(memory_in_megabyte) + 'M',
-                        '-serial', 'stdio',
-                        '-kernel', bootloader_path,
-                        '-initrd', test_exe_path,
-                        '-cpu', 'qemu64,apic,fsgsbase,rdtscp,xsave,xsaveopt,fxsr',
-                        '-device', 'isa-debug-exit,iobase=0xf4,iosize=0x04',
-                        ]
+        test_command = [
+            'qemu-system-x86_64',
+            '-display',
+            'none',
+            '-smp',
+            str(num_cores),
+            '-m',
+            f'{str(memory_in_megabyte)}M',
+            '-serial',
+            'stdio',
+            '-kernel',
+            bootloader_path,
+            '-initrd',
+            test_exe_path,
+            '-cpu',
+            'qemu64,apic,fsgsbase,rdtscp,xsave,xsaveopt,fxsr',
+            '-device',
+            'isa-debug-exit,iobase=0xf4,iosize=0x04',
+        ]
         super().__init__(test_command, 
                         timeout_seconds=timeout_seconds, 
                         num_cores = num_cores, 
@@ -116,7 +133,7 @@ class QemuTestRunner(TestRunner):
             self.gdb_port = 1234
             self.test_command.append('-s')
             self.test_command.append('-S')
-            print('Testing with Gdb enabled at port {}'.format(self.gdb_port))
+            print(f'Testing with Gdb enabled at port {self.gdb_port}')
 
     def validate_test_success(self, rc, stdout, stderr, execution_time) -> bool:
         assert rc != 0, "Error: rc is zero, something changed regarding the returncodes from qemu"
@@ -126,7 +143,7 @@ class QemuTestRunner(TestRunner):
         elif rc != 33:
             # Since we are using asserts, tests should mostly fail due to a panic
             # However, other kinds of test errors using the debug_exit of qemu are also possible
-            print("Test failed due to error returncode: {}".format(rc), file=sys.stderr)
+            print(f"Test failed due to error returncode: {rc}", file=sys.stderr)
             return False
         return super().validate_test_success(rc, stdout, stderr, execution_time)
 
@@ -161,16 +178,15 @@ class UhyveTestRunner(TestRunner):
             self.gdb_port = 1234  # ToDo: Add parameter to customize this
 
             self.custom_env['HERMIT_GDB_PORT'] = str(self.gdb_port)
-            print('Testing with Gdb enabled at port {}'.format(self.gdb_port))
+            print(f'Testing with Gdb enabled at port {self.gdb_port}')
         if num_cores != 1:
             self.custom_env['HERMIT_CPUS'] = str(num_cores)
 
     def validate_test_success(self, rc, stdout, stderr, execution_time) -> bool:
-        if rc != 0:
-            print("Test failed due to error returncode: {}".format(rc), file=sys.stderr)
-            return False
-        else:
+        if rc == 0:
             return super().validate_test_success(rc, stdout, stderr, execution_time)
+        print(f"Test failed due to error returncode: {rc}", file=sys.stderr)
+        return False
 
 
 # ToDo: Think about how to pass information about how many tests an executable executed back to the runner
@@ -182,9 +198,7 @@ def validate_stdout(stdout):
     :return: true if stdout does not indicate test failure
     """
     # Todo: support should_panic tests (Implementation on hermit side with custom panic handler)
-    if "!!!PANIC!!!" in stdout:
-        return False
-    return True
+    return "!!!PANIC!!!" not in stdout
 
 
 def clean_test_name(name: str):
@@ -222,7 +236,7 @@ parser.add_argument('--num_cores', type=int, default=1, help="Number of CPU core
 parser.add_argument('--timeout', type=int, default=300, help="Timeout in seconds for the test process.")
 
 args = parser.parse_args()
-print("Arguments: {}".format(args.runner_args))
+print(f"Arguments: {args.runner_args}")
 
 # The last argument is the executable, all other arguments are ignored for now - ToDo: recheck this
 test_exe = args.runner_args[-1]
@@ -256,24 +270,33 @@ if test_name == "hermit":
     print("Executing the Unittests is currently broken... Skipping Test NOT marking as failed")
     # print("Note: If you want to execute all tests, consider adding the '--no-fail-fast' flag")
     print("If you wish to manually execute the Unittests, you can simply run:")
-    print("`{}`".format(' '.join(test_runner.test_command)))
+    print(f"`{' '.join(test_runner.test_command)}`")
     exit(0)
 
 rc, stdout, stderr, execution_time, timed_out = test_runner.run_test()
 if timed_out:
-    print('Test {} did not finish before timeout of {} seconds'.format(test_name, args.timeout))
-    print("Test failed - Dumping Stderr:\n{}\n\nDumping Stdout:\n{}\n".format(stderr, stdout), file=sys.stderr)
+    print(
+        f'Test {test_name} did not finish before timeout of {args.timeout} seconds'
+    )
+    print(
+        f"Test failed - Dumping Stderr:\n{stderr}\n\nDumping Stdout:\n{stdout}\n",
+        file=sys.stderr,
+    )
     exit(1)
-test_ok = test_runner.validate_test_success(rc, stdout, stderr, execution_time)
-if test_ok :
-    print("Test Ok: {} - runtime: {} seconds".format(test_name, execution_time))
+if test_ok := test_runner.validate_test_success(
+    rc, stdout, stderr, execution_time
+):
+    print(f"Test Ok: {test_name} - runtime: {execution_time} seconds")
     if args.verbose or args.veryverbose:
-        print("Test {} stdout: {}".format(test_name, stdout))
-        print("Test {} stderr: {}".format(test_name, stderr))
+        print(f"Test {test_name} stdout: {stdout}")
+        print(f"Test {test_name} stderr: {stderr}")
     exit(0)
 else:
-    print("Test failed: {} - runtime: {} seconds".format(test_name, execution_time / (10 ** 9)))
-    print("Test failed - Dumping Stderr:\n{}\n\nDumping Stdout:\n{}\n".format(stderr, stdout), file=sys.stderr)
+    print(f"Test failed: {test_name} - runtime: {execution_time / 10**9} seconds")
+    print(
+        f"Test failed - Dumping Stderr:\n{stderr}\n\nDumping Stdout:\n{stdout}\n",
+        file=sys.stderr,
+    )
     exit(1)
 
 # Todo: improve information about the test:
